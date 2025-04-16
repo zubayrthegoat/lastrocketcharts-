@@ -3,158 +3,123 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Top 50 Music Chart</title>
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-database-compat.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #f9f9f9; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 8px 12px; border: 1px solid #ccc; background: #fff; }
-    .btn { padding: 6px 12px; border: none; background: #2ecc71; color: white; cursor: pointer; border-radius: 4px; }
-    .btn.red { background: #e74c3c; }
-    .arrow { font-weight: bold; margin-left: 5px; }
-    .admin-only { margin-top: 20px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+    th { background-color: #eee; }
+    .admin-btn, .logout-btn, .submit-btn { margin-top: 10px; padding: 5px 10px; }
+    .arrow-up { color: green; }
+    .arrow-down { color: red; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
   <h1>Top 50 Music Chart</h1>
-  <div id="auth">
-    <input type="password" id="adminPass" placeholder="Admin Password">
-    <button class="btn" onclick="loginAdmin()">Admin Login</button>
-    <button class="btn red hidden" onclick="logoutAdmin()" id="logoutBtn">Logout</button>
-  </div>  <div>
-    <h3>Submit a Song</h3>
-    <input type="text" id="songTitle" placeholder="Song Title">
-    <input type="text" id="songArtist" placeholder="Artist Name">
-    <button class="btn" onclick="submitSong()">Submit</button>
-  </div>  <div>
-    <h3>Submit an Album (Top 10 Albums)</h3>
-    <input type="text" id="albumTitle" placeholder="Album Title">
-    <input type="text" id="albumArtist" placeholder="Artist Name">
-    <button class="btn" onclick="submitAlbum()">Submit</button>
-  </div>  <h2>Top 50 Songs</h2>
-  <table>
-    <thead>
-      <tr><th>Rank</th><th>Title / Artist</th><th>Votes</th><th>Action</th></tr>
-    </thead>
-    <tbody id="songsTable"></tbody>
+  <button onclick="showAdminLogin()" class="admin-btn" id="adminBtn">Admin Only</button>
+  <button onclick="logoutAdmin()" class="logout-btn hidden" id="logoutBtn">Logout</button>  <div id="adminLogin" class="hidden">
+    <input type="password" id="adminPass" placeholder="Enter Admin Password" />
+    <button onclick="loginAdmin()">Login</button>
+  </div>  <h2>Submit a Song or Album</h2>
+  <input type="text" id="titleInput" placeholder="Title" />
+  <input type="text" id="artistInput" placeholder="Artist" />
+  <select id="categoryInput">
+    <option value="song">Song</option>
+    <option value="album">Album</option>
+  </select>
+  <button onclick="submitTrack()" class="submit-btn">Submit</button>  <h2>Top 50 Songs</h2>
+  <table id="songsTable">
+    <tr><th>Rank</th><th>Title / Artist</th><th>Votes</th><th>Vote</th><th class="admin-col hidden">Delete</th></tr>
   </table>  <h2>Top 10 Albums</h2>
-  <table>
-    <thead>
-      <tr><th>Rank</th><th>Title / Artist</th><th>Votes</th><th>Action</th></tr>
-    </thead>
-    <tbody id="albumsTable"></tbody>
-  </table>  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyC2aps8GcLUodAUoI-l5wu5uh3AVhFcnIU",
-      authDomain: "last-rocket-charts.firebaseapp.com",
-      projectId: "last-rocket-charts",
-      databaseURL: "https://last-rocket-charts-default-rtdb.firebaseio.com/",
-      storageBucket: "last-rocket-charts.appspot.com",
-      messagingSenderId: "216885990996",
-      appId: "1:216885990996:web:d766b3862866159206ffc1",
-      measurementId: "G-7MQNRZ1CF3"
+  <table id="albumsTable">
+    <tr><th>Rank</th><th>Title / Artist</th><th>Votes</th><th>Vote</th><th class="admin-col hidden">Delete</th></tr>
+  </table><script src="https://cdn.jsdelivr.net/npm/backendless@7.1.10/dist/backendless.min.js"></script><script>
+const APP_ID = "56C55E73-3768-4BE2-BAB0-E0F42F583863";
+const API_KEY = "4F395F4B-4499-4B0A-818B-5CE3B77700F2";
+let isAdmin = false;
+
+Backendless.initApp(APP_ID, API_KEY);
+
+function showAdminLogin() {
+  document.getElementById('adminLogin').classList.remove('hidden');
+}
+
+function loginAdmin() {
+  const pass = document.getElementById('adminPass').value;
+  if (pass === '12345') {
+    isAdmin = true;
+    document.getElementById('adminLogin').classList.add('hidden');
+    document.getElementById('adminBtn').classList.add('hidden');
+    document.getElementById('logoutBtn').classList.remove('hidden');
+    document.querySelectorAll('.admin-col').forEach(el => el.classList.remove('hidden'));
+  }
+}
+
+function logoutAdmin() {
+  isAdmin = false;
+  document.getElementById('adminBtn').classList.remove('hidden');
+  document.getElementById('logoutBtn').classList.add('hidden');
+  document.querySelectorAll('.admin-col').forEach(el => el.classList.add('hidden'));
+}
+
+function submitTrack() {
+  const title = document.getElementById('titleInput').value;
+  const artist = document.getElementById('artistInput').value;
+  const category = document.getElementById('categoryInput').value;
+  if (!title || !artist) return alert('Fill all fields');
+  
+  const track = { title, artist, votes: 0, category };
+  Backendless.Data.of("Tracks").save(track).then(() => loadTracks());
+}
+
+function voteTrack(objectId, currentVotes) {
+  const key = `voted_${objectId}`;
+  let votesLeft = localStorage.getItem(key);
+  if (!votesLeft) votesLeft = 3;
+
+  if (!isAdmin && votesLeft <= 0) return alert("You’ve used all your votes for this song today.");
+
+  const newVotes = currentVotes + (isAdmin ? 33 : 1);
+  Backendless.Data.of("Tracks").save({ objectId, votes: newVotes }).then(() => {
+    if (!isAdmin) localStorage.setItem(key, votesLeft - 1);
+    loadTracks();
+  });
+}
+
+function deleteTrack(id) {
+  if (!isAdmin) return;
+  Backendless.Data.of("Tracks").remove({ objectId: id }).then(() => loadTracks());
+}
+
+function loadTracks() {
+  Backendless.Data.of("Tracks").find().then(data => {
+    const songs = data.filter(t => t.category === "song").sort((a, b) => b.votes - a.votes).slice(0, 50);
+    const albums = data.filter(t => t.category === "album").sort((a, b) => b.votes - a.votes).slice(0, 10);
+
+    const renderRows = (items, tableId) => {
+      const table = document.getElementById(tableId);
+      table.innerHTML = `<tr><th>Rank</th><th>Title / Artist</th><th>Votes</th><th>Vote</th><th class="admin-col ${isAdmin ? '' : 'hidden'}">Delete</th></tr>`;
+      items.forEach((track, i) => {
+        const upDown = i === 0 ? '' : (track.votes > items[i-1]?.votes ? '▲' : '▼');
+        table.innerHTML += `
+          <tr>
+            <td>${i+1} ${i<10 ? `<span class="${upDown==='▲'?'arrow-up':'arrow-down'}">${upDown}</span>` : ''}</td>
+            <td>${track.title} / ${track.artist}</td>
+            <td>${track.votes}</td>
+            <td><button onclick="voteTrack('${track.objectId}', ${track.votes})">Vote</button></td>
+            <td class="admin-col ${isAdmin ? '' : 'hidden'}"><button onclick="deleteTrack('${track.objectId}')">Delete</button></td>
+          </tr>
+        `;
+      });
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const userId = localStorage.getItem('userId') || crypto.randomUUID();
-    localStorage.setItem('userId', userId);
-    let isAdmin = false;
+    renderRows(songs, 'songsTable');
+    renderRows(albums, 'albumsTable');
+  });
+}
 
-    function loginAdmin() {
-      const input = document.getElementById('adminPass').value;
-      if (input === '12345') {
-        isAdmin = true;
-        document.getElementById('logoutBtn').classList.remove('hidden');
-        alert('Admin logged in');
-      } else alert('Wrong password');
-    }
-
-    function logoutAdmin() {
-      isAdmin = false;
-      document.getElementById('logoutBtn').classList.add('hidden');
-      alert('Logged out');
-    }
-
-    function submitSong() {
-      const title = document.getElementById('songTitle').value.trim();
-      const artist = document.getElementById('songArtist').value.trim();
-      if (title && artist) {
-        db.ref('songs').push({ title, artist, votes: 0, lastRank: 0 });
-        document.getElementById('songTitle').value = '';
-        document.getElementById('songArtist').value = '';
-      }
-    }
-
-    function submitAlbum() {
-      const title = document.getElementById('albumTitle').value.trim();
-      const artist = document.getElementById('albumArtist').value.trim();
-      if (title && artist) {
-        db.ref('albums').push({ title, artist, votes: 0, lastRank: 0 });
-        document.getElementById('albumTitle').value = '';
-        document.getElementById('albumArtist').value = '';
-      }
-    }
-
-    function vote(refPath, id) {
-      const voteKey = `${refPath}_${id}`;
-      const lastVote = localStorage.getItem(voteKey);
-      const now = Date.now();
-      const oneDay = 24 * 60 * 60 * 1000;
-      let voteCount = JSON.parse(localStorage.getItem(voteKey + '_count')) || 0;
-
-      if (!isAdmin) {
-        if (lastVote && now - lastVote < oneDay && voteCount >= 3) {
-          return alert('You reached max votes for this today. Try again tomorrow.');
-        }
-      }
-
-      const ref = db.ref(`${refPath}/${id}/votes`);
-      ref.transaction(current => (current || 0) + (isAdmin ? 33 : 33));
-
-      if (!isAdmin) {
-        localStorage.setItem(voteKey, now);
-        localStorage.setItem(voteKey + '_count', JSON.stringify(voteCount + 1));
-      }
-    }
-
-    function renderTable(data, tbodyId, path) {
-      const tbody = document.getElementById(tbodyId);
-      tbody.innerHTML = '';
-      data.sort((a, b) => b.votes - a.votes);
-      data.forEach((item, i) => {
-        const change = item.lastRank - (i + 1);
-        const arrow = change > 0 ? '▲' : change < 0 ? '▼' : '';
-        tbody.innerHTML += `
-          <tr>
-            <td>${i + 1}${i < 10 ? `<span class='arrow'>${arrow}</span>` : ''}</td>
-            <td>${item.title} / ${item.artist}</td>
-            <td>${item.votes}</td>
-            <td>
-              <button class="btn" onclick="vote('${path}', '${item.id}')">Vote</button>
-              ${isAdmin ? `<button class="btn red" onclick="removeItem('${path}', '${item.id}')">Delete</button>` : ''}
-            </td>
-          </tr>`;
-      });
-    }
-
-    function removeItem(path, id) {
-      db.ref(`${path}/${id}`).remove();
-    }
-
-    function fetchData(path, tbodyId, limit) {
-      db.ref(path).on('value', snap => {
-        const data = snap.val() || {};
-        const arr = Object.keys(data).map(key => ({ id: key, ...data[key] })).slice(0, limit);
-        renderTable(arr, tbodyId, path);
-        arr.forEach((item, index) => {
-          db.ref(`${path}/${item.id}`).update({ lastRank: index + 1 });
-        });
-      });
-    }
-
-    fetchData('songs', 'songsTable', 50);
-    fetchData('albums', 'albumsTable', 10);
-  </script></body>
+// Reset vote count every 24 hours
+setInterval(() => localStorage.clear(), 24 * 60 * 60 * 1000);
+loadTracks();
+</script></body>
 </html>
